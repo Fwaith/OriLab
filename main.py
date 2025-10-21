@@ -5,14 +5,13 @@ from OpenGL.GL import *
 
 import display
 import render
+import input
 
 def main():
     window=display.window()
     render.object()
     while not glfw.window_should_close(window):
-        if glfw.get_key(window, glfw.KEY_ESCAPE) == glfw.PRESS:
-            print("Escape pressed - closing window")
-            glfw.set_window_should_close(window, True)
+        input.processInput(window)
        
         glClearColor(0.0, 0.0, 0.0, 1.0)
         glClear(GL_COLOR_BUFFER_BIT)
@@ -22,6 +21,9 @@ def main():
         glfw.swap_buffers(window)
         glfw.swap_interval(1)
         glfw.poll_events()
+
+    glfw.terminate()
+    return
 
 if __name__ == "__main__":
     main()
