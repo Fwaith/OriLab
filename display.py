@@ -20,7 +20,7 @@ def window():
 
 def set_window():
     glfw.window_hint(glfw.SCALE_FRAMEBUFFER, glfw.FALSE)
-    window = glfw.create_window(960, 540, "OriLab", None, None)
+    window = glfw.create_window(600, 600, "OriLab", None, None)
     return window
 
 def framebuffer_size_callback(window, width, height):

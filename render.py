@@ -28,10 +28,33 @@ def object():
             gl_Position = vec4(aPos.x, aPos.y, aPos.z, 1.0);
         }"""
 
+    fragment_shader_source = """#version 330 core
+        out vec4 FragColor;
+        void main()
+        {
+            gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0);
+        }"""
+
     glShaderSource(vertex_shader, vertex_shader_source)
+    glShaderSource(fragment_shader, fragment_shader_source)
 
     glCompileShader(vertex_shader)
     if not glGetShaderiv(vertex_shader, GL_COMPILE_STATUS):
         error = glGetShaderInfoLog(vertex_shader).decode()
         print(error)
         raise RuntimeError("Vertex shader compilation error")
+    
+    glCompileShader(fragment_shader)
+    if not glGetShaderiv(fragment_shader, GL_COMPILE_STATUS):
+        error = glGetShaderInfoLog(fragment_shader).decode()
+        print(error)
+        raise RuntimeError("Fragment shader compilation error")
+
+    glAttachShader(program, vertex_shader)
+    glAttachShader(program, fragment_shader)
+    glLinkProgram(program)
+
+    glDetachShader(program, vertex_shader)
+    glDetachShader(program, fragment_shader)
+
+    glUseProgram(program)
