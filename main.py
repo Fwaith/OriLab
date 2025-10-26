@@ -13,11 +13,8 @@ def main():
     while not glfw.window_should_close(window):
         input.processInput(window)
        
-        glClearColor(0.0, 0.0, 0.0, 1.0)
         glClear(GL_COLOR_BUFFER_BIT)
-
-        glDrawArrays(GL_TRIANGLE_STRIP, 0, 3)
-         
+        glDrawArrays(GL_TRIANGLE_STRIP, 0, 4)
         glfw.swap_buffers(window)
         glfw.swap_interval(1)
         glfw.poll_events()
