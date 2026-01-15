@@ -87,11 +87,10 @@ def object():
         in vec2 TexCoord;
         in vec3 Pos;
 
-        uniform vec4 ourColor;
         uniform sampler2D ourTexture;
 
         void main() {
-            FragColor = texture(ourTexture, TexCoord) * vec4(Pos.x, ourColor.g, Pos.z, 1.0);
+            FragColor = texture(ourTexture, TexCoord) * vec4(Pos.x, Pos.y, Pos.z, 1.0);
         } """
 
     vertexShader = glCreateShader(GL_VERTEX_SHADER)
