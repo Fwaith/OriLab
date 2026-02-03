@@ -1,0 +1,67 @@
+{
+  "format": "fold",
+  "version": "1.1",
+  "creator": "oriedita 1.1.3",
+  
+  "vertices_coords": [
+    [0.0, 0.0],       
+    [0.0, 1.0],
+    [0.5, 0.0],       
+    [1.0, 1.0],
+    [0.5, 1.0],
+    [1.0, 0.0]    
+  ],
+  
+  "edges_vertices": [
+    [0, 1],
+    [0, 2],
+    [3, 4],
+    [3, 5],
+    [4, 2],
+    [2, 5],
+    [4, 1]
+  ],
+  
+  "edges_assignment": [
+    "B",
+    "B",
+    "B",
+    "B",
+    "V",
+    "B",
+    "B"
+  ],
+  
+  "edges_foldAngle": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    180.0,
+    0.0,
+    0.0
+  ],
+  
+  "faces_vertices": [
+    [0, 1, 4, 2],
+    [2, 4, 3, 5]
+  ],
+  
+  "faces_edges": [
+    [1, 0, 6, 4],
+    [5, 4, 2, 3]
+  ],
+  
+  "metadata": {
+    "total_vertices": 6,
+    "total_edges": 7,
+    "total_faces": 2,
+    "edge_counts": {
+      "boundary": 6,
+      "valley": 1,
+      "mountain": 0
+    },
+    "boundary_edges": [0, 1, 2, 3, 5, 6],
+    "valley_folds": [4]
+  }
+}
