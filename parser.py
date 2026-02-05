@@ -9,6 +9,7 @@ class Parser:
         self.vertices = []
         self.edges = []  
         self.faces = [] 
+        self.tris = []
         
         self.nodes = []
         self.beams = []
@@ -43,18 +44,19 @@ class Parser:
     def discretise_crease_pattern(self):
         for face in self.faces:
             if len(face) == 3:
-                self.triangles.append(face)
+                self.tris.append(face)
             elif len(face) == 4:
                 face.sort()
                 vd = self.find_diagonal(face[0], face[1:])
                 self.create_facet_edge(face[0], vd)
                 for v in face[1:]:
                     if v != vd:
-                        self.triangles.append([face[0], v, vd])
+                        self.tris.append([face[0], v, vd])
             elif len(face) > 4:
                 print('WORK ON LATER')
                 #triangulate_faces(face)
-        self.triangles = np.array(self.triangles)
+        self.edges = np.sort(self.edges)
+        self.tris = np.array(self.tris)
    
     def find_diagonal(self, v, rest):
         for r in rest:
@@ -67,34 +69,150 @@ class Parser:
         self.edge_assignments.append('F')
         self.edge_fold_angles.append(0.0)
 
-   # FIX: FINISH LATER
-    #def triangulate_faces(self):
-    #    print()
+    def triangulate_faces(self, face):
+        if len(face) < 3:
+            return []
+        
+        polygon = face.copy()
+        triangles = []
+        
+        def is_ccw(a, b, c):
+            return ((b[0] - a[0]) * (c[1] - a[1]) - 
+                    (b[1] - a[1]) * (c[0] - a[0])) > 0
+        
+        def point_in_triangle(p, a, b, c):
+            v0 = c - a
+            v1 = b - a
+            v2 = p - a
+            dot00 = np.dot(v0, v0)
+            dot01 = np.dot(v0, v1)
+            dot02 = np.dot(v0, v2)
+            dot11 = np.dot(v1, v1)
+            dot12 = np.dot(v1, v2)
+            inv_denom = 1.0 / (dot00 * dot11 - dot01 * dot01)
+            u = (dot11 * dot02 - dot01 * dot12) * inv_denom
+            v = (dot00 * dot12 - dot01 * dot02) * inv_denom
+            return (u >= 0) and (v >= 0) and (u + v <= 1)
+        
+        positions = [self.vertices[v][:2] for v in polygon]
+        n = len(polygon)
+        
+        while n > 3:
+            ear_found = False
+            
+            for i in range(n):
+                i_prev = (i - 1) % n
+                i_curr = i
+                i_next = (i + 1) % n
+                a = positions[i_prev]
+                b = positions[i_curr]
+                c = positions[i_next]
+                
+                if not is_ccw(a, b, c):
+                    continue
+                
+                is_ear = True
+                for j in range(n):
+                    if j == i_prev or j == i_curr or j == i_next:
+                        continue
+                    p = positions[j]
+                    if point_in_triangle(p, a, b, c):
+                        is_ear = False
+                        break
+                
+                if is_ear:
+                    triangles.append([polygon[i_prev], polygon[i_curr], polygon[i_next]])
+                    polygon.pop(i_curr)
+                    positions.pop(i_curr)
+                    n -= 1
+                    ear_found = True
+                    break
+            
+            if not ear_found:
+                print(f"Warning: Ear clipping failed for face {face}. Using fan triangulation.")
+                triangles = []
+                for i in range(1, len(face) - 1):
+                    triangles.append([face[0], face[i], face[i + 1]])
+                return triangles
+        
+        if n == 3:
+            triangles.append(polygon)
+        return triangles
 
     def find_connected_beams(self, id):
         return np.where((self.edges[:, 0] == id) |
                         (self.edges[:, 1] == id))[0]
 
     def find_connected_triangles(self, id):
-        return np.where((self.triangles[:, 0] == id) |
-                        (self.triangles[:, 1] == id) |
-                        (self.triangles[:, 2] == id))[0]
+        return np.where((self.tris[:, 0] == id) |
+                        (self.tris[:, 1] == id) |
+                        (self.tris[:, 2] == id))[0]
 
     def calculate_beam_length(self, id):
         return np.linalg.norm(self.vertices[self.edges[id, 0]] - self.vertices[self.edges[id, 1]])
 
     def find_adjacent_triangles(self, id):
-        for t in self.triangles:
-            adjacent = []
-            e1 = [t[0], t[1]]
-            e2 = [t[0], t[2]]
-            e3 = [t[1], t[2]]
-            if (id == e1) | (id == e2) | (id == e3):
-                np.append(adjacent, id) 
+        adjacent = []
+
+        for i, t in enumerate(self.tris):
+            e1 = np.array([t[0], t[1]])
+            e2 = np.array([t[0], t[2]])
+            e3 = np.array([t[1], t[2]])
+            if (e1 == self.edges[id]).all():
+                adjacent.append(i)
+            elif (e2 == self.edges[id]).all():
+                adjacent.append(i)
+            elif (e3 == self.edges[id]).all():
+                adjacent.append(i)
+        return np.array(adjacent)
+
+    def calculate_area(self, id):
+        a, b, c = self.tris[id]
+
+        p1 = self.vertices[a]
+        p2 = self.vertices[b]
+        p3 = self.vertices[c]
+
+        v1 = p2 - p1
+        v2 = p3 - p1
+
+        cross = np.cross(v1, v2)
+        return 0.5 * np.linalg.norm(cross)
+
+    def calculate_interior_angles(self, id):
+        p1 = self.vertices[self.tris[id][0]]
+        p2 = self.vertices[self.tris[id][1]]
+        p3 = self.vertices[self.tris[id][2]]
+        a = np.linalg.norm(p3 - p2) 
+        b = np.linalg.norm(p3 - p1)
+        c = np.linalg.norm(p2 - p1)
+        angles = np.zeros(3)
+        
+        if b > 1e-10 and c > 1e-10:
+            cos_angle = (b**2 + c**2 - a**2) / (2 * b * c)
+            angles[0] = np.arccos(np.clip(cos_angle, -1.0, 1.0))
+        if a > 1e-10 and c > 1e-10:
+            cos_angle = (a**2 + c**2 - b**2) / (2 * a * c)
+            angles[1] = np.arccos(np.clip(cos_angle, -1.0, 1.0))
+        if a > 1e-10 and b > 1e-10:
+            cos_angle = (a**2 + b**2 - c**2) / (2 * a * b)
+            angles[2] = np.arccos(np.clip(cos_angle, -1.0, 1.0))
+        return angles
+
+    def find_triangle_beams(self,id):
+        sides = []
+        e1 = np.array([self.tris[id][0], self.tris[id][1]])
+        e2 = np.array([self.tris[id][0], self.tris[id][2]])
+        e3 = np.array([self.tris[id][1], self.tris[id][2]])
+        for i, e in enumerate(self.edges):
+            if np.array_equal(e, e1) | np.array_equal(e, e2) | np.array_equal(e, e3):
+                sides.append(i)
+        return np.array(sides)
 
     def create_objects(self):
         self.nodes = [Node(id, self) for id in range(len(self.vertices))]
         self.beams = [Beam(id, self) for id in range(len(self.edges))]
+        self.triangles = [Triangle(id, self) for id in range(len(self.tris))]
 
     def print_data(self):
         print('Vertices:\n', self.vertices)
@@ -103,12 +221,14 @@ class Parser:
         print('Edge Assignments:\n', self.edge_assignments)
         print('Edge Angles:\n', self.edge_fold_angles)
         print('Face:\n', self.faces)
-        print('Triangles:\n', self.triangles)
+        print('Triangles:\n', self.tris)
         print()
         for node in self.nodes:
             print(node)
         for beam in self.beams:
             print(beam)
+        for triangle in self.triangles:
+            print(triangle)
 
 class Node:
     def __init__(self, id, parser):
@@ -121,11 +241,11 @@ class Node:
         self.force = np.zeros(3)
 
         self.beams_connected = parser.find_connected_beams(id)
-        self.triangles_incident = parser.find_connected_triangles(id)
+        self.tris_incident = parser.find_connected_triangles(id)
         self.creases_affecting = []
-        
-        for t in self.triangles_incident:
-            for b in parser.triangles[t]:
+
+        for t in self.tris_incident:
+            for b in parser.tris[t]:
                 if b not in self.creases_affecting:
                     self.creases_affecting.append(b)
 
@@ -137,7 +257,7 @@ class Node:
                 f"Node {self.id}\n"
                 f"Position {self.position}\n"
                 f"Beams {self.beams_connected}\n"
-                f"Triangles {self.triangles_incident}\n"
+                f"Triangles {self.tris_incident}\n"
                 f"Creases Affecting {self.creases_affecting}\n"
             )
 
@@ -154,7 +274,7 @@ class Beam:
         self.fold_angle_target = parser.edge_fold_angles[id]
         self.fold_angle_current = 0.0
 
-        self.node_endpoints = [parser.edges[id, 0], parser.edges[id, 1]]
+        self.node_endpoints = np.array([parser.edges[id, 0], parser.edges[id, 1]])
         self.triangle_adjacent = parser.find_adjacent_triangles(id)
 
     def __str__(self):
@@ -162,17 +282,41 @@ class Beam:
                 f"Beam {self.id}\n"
                 f"Length {self.length_original}\n"
                 f"Type {self.type}\n"
+                f"Endpoints {self.node_endpoints}\n"
+                f"Adjacent {self.triangle_adjacent}\n"
             )
 
 class Triangle:
-    def __init__():
-        self.normal
-        self.angles_interior_current
+    def __init__(self, id, parser):
+        self.id = id
+        self.normal = np.zeros(3)
 
-        self.angles_interior_original
-        self.k_face
-        self.area
+        self.angles_interior_original = parser.calculate_interior_angles(id)
+        self.angles_interior_current = self.angles_interior_original
+        self.k_face = 100.0
+        self.area = parser.calculate_area(id)
 
-        self.triangle_nodes
-        self.triangle_beams
-        self.triangle_adjacent
+        self.triangle_nodes = parser.tris[id]
+        self.triangle_beams = parser.find_triangle_beams(id)
+        self.triangle_adjacent = []
+
+        for b in self.triangle_beams:
+            print("beam", b)
+            for i, t in enumerate(parser.tris):
+                print("triangle", t)
+                if (np.array_equal(parser.edges[b], np.array([t[0], t[1]])) |
+                    np.array_equal(parser.edges[b], np.array([t[0], t[2]])) |
+                    np.array_equal(parser.edges[b], np.array([t[1], t[2]]))) and not np.array_equal(t, parser.tris[id]):
+                    self.triangle_adjacent.append(i)
+
+        self.triangle_adjacent = np.array(self.triangle_adjacent)
+
+    def __str__(self):
+        return (
+                f"Triangle {self.id}\n"
+                f"Angles {self.angles_interior_original}\n"
+                f"Area {self.area}\n"
+                f"Vertices {self.triangle_nodes}\n"
+                f"Sides {self.triangle_beams}\n"
+                f"Neighbours {self.triangle_adjacent}\n"
+        )
