@@ -7,8 +7,8 @@ class Parser:
         self.data = None
 
         self.vertices = []
-        self.edges = []  
-        self.faces = [] 
+        self.edges = []
+        self.faces = []
         self.tris = []
         
         self.nodes = []
@@ -53,8 +53,7 @@ class Parser:
                     if v != vd:
                         self.tris.append([face[0], v, vd])
             elif len(face) > 4:
-                print('WORK ON LATER')
-                #triangulate_faces(face)
+                self.triangulate_faces(face)
         self.edges = np.sort(self.edges)
         self.tris = np.array(self.tris)
    
@@ -70,74 +69,11 @@ class Parser:
         self.edge_fold_angles.append(0.0)
 
     def triangulate_faces(self, face):
-        if len(face) < 3:
-            return []
-        
-        polygon = face.copy()
-        triangles = []
-        
-        def is_ccw(a, b, c):
-            return ((b[0] - a[0]) * (c[1] - a[1]) - 
-                    (b[1] - a[1]) * (c[0] - a[0])) > 0
-        
-        def point_in_triangle(p, a, b, c):
-            v0 = c - a
-            v1 = b - a
-            v2 = p - a
-            dot00 = np.dot(v0, v0)
-            dot01 = np.dot(v0, v1)
-            dot02 = np.dot(v0, v2)
-            dot11 = np.dot(v1, v1)
-            dot12 = np.dot(v1, v2)
-            inv_denom = 1.0 / (dot00 * dot11 - dot01 * dot01)
-            u = (dot11 * dot02 - dot01 * dot12) * inv_denom
-            v = (dot00 * dot12 - dot01 * dot02) * inv_denom
-            return (u >= 0) and (v >= 0) and (u + v <= 1)
-        
-        positions = [self.vertices[v][:2] for v in polygon]
-        n = len(polygon)
-        
-        while n > 3:
-            ear_found = False
-            
-            for i in range(n):
-                i_prev = (i - 1) % n
-                i_curr = i
-                i_next = (i + 1) % n
-                a = positions[i_prev]
-                b = positions[i_curr]
-                c = positions[i_next]
-                
-                if not is_ccw(a, b, c):
-                    continue
-                
-                is_ear = True
-                for j in range(n):
-                    if j == i_prev or j == i_curr or j == i_next:
-                        continue
-                    p = positions[j]
-                    if point_in_triangle(p, a, b, c):
-                        is_ear = False
-                        break
-                
-                if is_ear:
-                    triangles.append([polygon[i_prev], polygon[i_curr], polygon[i_next]])
-                    polygon.pop(i_curr)
-                    positions.pop(i_curr)
-                    n -= 1
-                    ear_found = True
-                    break
-            
-            if not ear_found:
-                print(f"Warning: Ear clipping failed for face {face}. Using fan triangulation.")
-                triangles = []
-                for i in range(1, len(face) - 1):
-                    triangles.append([face[0], face[i], face[i + 1]])
-                return triangles
-        
-        if n == 3:
-            triangles.append(polygon)
-        return triangles
+        f = face.copy()
+        while len(f) > 3:
+            self.tris.append([f[0], f[1], f[2]])
+            f.pop(1)
+        self.tris.append([f[0], f[1], f[2]])
 
     def find_connected_beams(self, id):
         return np.where((self.edges[:, 0] == id) |
@@ -301,9 +237,7 @@ class Triangle:
         self.triangle_adjacent = []
 
         for b in self.triangle_beams:
-            print("beam", b)
             for i, t in enumerate(parser.tris):
-                print("triangle", t)
                 if (np.array_equal(parser.edges[b], np.array([t[0], t[1]])) |
                     np.array_equal(parser.edges[b], np.array([t[0], t[2]])) |
                     np.array_equal(parser.edges[b], np.array([t[1], t[2]]))) and not np.array_equal(t, parser.tris[id]):
