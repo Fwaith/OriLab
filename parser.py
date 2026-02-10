@@ -91,9 +91,9 @@ class Parser:
         adjacent = []
 
         for i, t in enumerate(self.tris):
-            e1 = np.array([t[0], t[1]])
-            e2 = np.array([t[0], t[2]])
-            e3 = np.array([t[1], t[2]])
+            e1 = np.sort(np.array([t[0], t[1]]))
+            e2 = np.sort(np.array([t[0], t[2]]))
+            e3 = np.sort(np.array([t[1], t[2]]))
             if (e1 == self.edges[id]).all():
                 adjacent.append(i)
             elif (e2 == self.edges[id]).all():
@@ -137,11 +137,11 @@ class Parser:
 
     def find_triangle_beams(self,id):
         sides = []
-        e1 = np.array([self.tris[id][0], self.tris[id][1]])
-        e2 = np.array([self.tris[id][0], self.tris[id][2]])
-        e3 = np.array([self.tris[id][1], self.tris[id][2]])
+        e1 = np.sort(np.array([self.tris[id][0], self.tris[id][1]]))
+        e2 = np.sort(np.array([self.tris[id][0], self.tris[id][2]]))
+        e3 = np.sort(np.array([self.tris[id][1], self.tris[id][2]]))
         for i, e in enumerate(self.edges):
-            if np.array_equal(e, e1) | np.array_equal(e, e2) | np.array_equal(e, e3):
+            if np.array_equal(e, e1) or np.array_equal(e, e2) or np.array_equal(e, e3):
                 sides.append(i)
         return np.array(sides)
 
