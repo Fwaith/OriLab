@@ -26,7 +26,7 @@ class Parser:
         self.extract_faces()
         self.discretise_crease_pattern()
         self.create_objects()
-        self.print_data()
+        #self.print_data()
 
     def extract_vertices(self):
         vertices_coords = self.data["vertices_coords"]
@@ -72,6 +72,7 @@ class Parser:
         f = face.copy()
         while len(f) > 3:
             self.tris.append([f[0], f[1], f[2]])
+            self.create_facet_edge(f[0], f[2])
             f.pop(1)
         self.tris.append([f[0], f[1], f[2]])
 
