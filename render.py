@@ -1,125 +1,228 @@
-import glfw
-import glm
-import math
 import numpy as np
 from OpenGL.GL import *
-from PIL import Image
+import glm
 
-VAO = None
-shaderProgram = None
+class Renderer:
+    def __init__(self, parser):
+        self.beam_vertices = self.create_beam_array(parser)
+        self.beam_colours = self.create_beam_colour_array(parser)
+        self.beam_vertex_count = len(self.beam_vertices) // 3
 
-def object():
-    global VAO, shaderProgram    
-    
-    vertices = np.array([
-        -0.5, 0.5, 0.5,  1.0, 0.0, 0.0  ,0.0, 1.0, #top left
-        0.5, 0.5, 0.5,  0.0, 1.0, 0.0  ,1.0, 1.0, #top right
-        -0.5, -0.5, 0.5,  0.0, 0.0, 1.0  ,0.0, 0.0, #bottom left
-        0.5, -0.5, 0.5,  1.0, 1.0, 0.0  ,1.0, 0.0, #bottom right
+        self.setup_buffers_beam()
+        self.setup_shaders_beam()
+        
+        self.triangle_vertices = self.create_triangle_array(parser)
+        self.triangle_count = len(self.triangle_vertices) // 3
 
-        -0.5, 0.5, -0.5,  1.0, 0.0, 0.0  ,0.0, 1.0, #top left back
-        0.5, 0.5, -0.5,  0.0, 1.0, 0.0  ,1.0, 1.0, #top right back
-        -0.5, -0.5, -0.5,  0.0, 0.0, 1.0  ,0.0, 0.0, #bottom left back
-        0.5, -0.5, -0.5,  1.0, 1.0, 0.0  ,1.0, 0.0 #bottom right back
-    ], dtype=np.float32)
+        self.setup_buffers_triangle()
+        self.setup_shaders_triangle()
 
-    indices = np.array([
-        0, 1, 2,  2, 1, 3, #front
-        4, 5, 6,  5, 6, 7, #back
-        0, 4, 6,  0, 6, 2, #left
-        1, 5, 3,  5, 3, 7, #right
-        0, 4, 5,  5, 0, 1, #top
-        2, 7, 6,  7, 2, 3  #bottom
-    ], dtype=np.uint32)
+    def create_beam_array(self, parser):
+        vertices = []
 
-    VAO = glGenVertexArrays(1)
-    glBindVertexArray(VAO)
+        for beam in parser.beams:
+            v1, v2 = beam.node_endpoints
+            p1 = parser.vertices[v1]
+            p2 = parser.vertices[v2]
+            vertices.extend(p1)
+            vertices.extend(p2)
 
-    VBO = glGenBuffers(1)
-    glBindBuffer(GL_ARRAY_BUFFER, VBO)
-    glBufferData(GL_ARRAY_BUFFER, vertices.nbytes, vertices, GL_STATIC_DRAW)
-    
-    EBO = glGenBuffers(1)
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO)
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.nbytes, indices, GL_STATIC_DRAW)
+        return np.array(vertices, dtype=np.float32)
 
-    stride = 8 * 4
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, stride, None)
-    glEnableVertexAttribArray(0)
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, stride, ctypes.c_void_p(12))
-    glEnableVertexAttribArray(1)
-    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, stride, ctypes.c_void_p(24))
-    glEnableVertexAttribArray(2)
+    def create_beam_colour_array(self, parser):
+        beam_colours = []
+        
+        for beam in parser.beams:
+            if beam.type == 'M':
+                colour = [1.0, 0.0, 0.0, 1.0]
+            elif beam.type == 'V':
+                colour = [0.0, 0.0, 1.0, 1.0]
+            elif beam.type == 'F':
+                colour = [1.0, 1.0, 0.0, 1.0]
+            else:
+                colour = [0.0, 0.0, 0.0, 1.0]
+            
+            beam_colours.extend(colour)
+            beam_colours.extend(colour)
+        
+        return np.array(beam_colours, dtype=np.float32)
 
-    image = Image.open("metal.jpg")
-    width, height = image.size
-    """nrChannels = len(image.getbands())"""
-    data = np.array(image)
+    def setup_buffers_beam(self):
+        self.beam_vao = glGenVertexArrays(1)
+        glBindVertexArray(self.beam_vao)
 
-    texture = glGenTextures(1)
-    glBindTexture(GL_TEXTURE_2D, texture)
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data)
-    glGenerateMipmap(GL_TEXTURE_2D)
+        self.beam_vbo = glGenBuffers(1)
+        glBindBuffer(GL_ARRAY_BUFFER, self.beam_vbo)
+        glBufferData(GL_ARRAY_BUFFER, self.beam_vertices.nbytes,  self.beam_vertices, GL_DYNAMIC_DRAW)
 
-    vertexShaderSource = """
-        #version 460 core
-        layout (location = 0) in vec3 aPos;
-        layout (location = 1) in vec3 aColor;
-        layout (location = 2) in vec2 aTexCoord;
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, None)
+        glEnableVertexAttribArray(0)
+        
+        self.beam_colour_vbo = glGenBuffers(1)
+        glBindBuffer(GL_ARRAY_BUFFER, self.beam_colour_vbo)
+        glBufferData(GL_ARRAY_BUFFER, self.beam_colours.nbytes, self.beam_colours, GL_STATIC_DRAW)
+        
+        glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, 0, None)
+        glEnableVertexAttribArray(1)
+        
+        glBindVertexArray(0)
+        glBindBuffer(GL_ARRAY_BUFFER, 0)
 
-        out vec2 TexCoord;
-        out vec3 Pos;
+    def setup_shaders_beam(self):
+        vertex_shader_source = """
+            #version 330 core
+            layout (location = 0) in vec3 aPos;
+            layout (location = 1) in vec4 aColor;
+            
+            uniform mat4 model;
+            uniform mat4 view;
+            uniform mat4 projection;
+            
+            out vec4 Color;
+            
+            void main() {
+                gl_Position = projection * view * model * vec4(aPos, 1.0);
+                Color = aColor;
+            }
+        """
+        
+        fragment_shader_source = """
+            #version 330 core
+            in vec4 Color;
+            out vec4 FragColor;
+            
+            void main() {
+                FragColor = Color;
+            }
+        """
 
-        uniform mat4 model;
-        uniform mat4 view;
-        uniform mat4 projection;
+        vertex_shader = glCreateShader(GL_VERTEX_SHADER)
+        glShaderSource(vertex_shader, vertex_shader_source)
+        glCompileShader(vertex_shader)
+        
+        fragment_shader = glCreateShader(GL_FRAGMENT_SHADER)
+        glShaderSource(fragment_shader, fragment_shader_source)
+        glCompileShader(fragment_shader)
+        
+        self.shader_program = glCreateProgram()
+        glAttachShader(self.shader_program, vertex_shader)
+        glAttachShader(self.shader_program, fragment_shader)
+        glLinkProgram(self.shader_program)
+        
+        glDeleteShader(vertex_shader)
+        glDeleteShader(fragment_shader)
+        
+        self.model_loc = glGetUniformLocation(self.shader_program, "model")
+        self.view_loc = glGetUniformLocation(self.shader_program, "view")
+        self.projection_loc = glGetUniformLocation(self.shader_program, "projection")
 
-        void main() {
-            gl_Position = projection * view * model * vec4(aPos.x, aPos.y, aPos.z, 1.0);
-            Pos = aPos;
-            TexCoord = aTexCoord;
-        } """
+        self.beam_shader = self.shader_program
+        self.beam_model_loc = self.model_loc
+        self.beam_view_loc = self.view_loc
+        self.beam_projection_loc = self.projection_loc
+     
+    def render_beams(self, model, view, projection):
+        glEnable(GL_LINE_SMOOTH)
+        glEnable(GL_BLEND)
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+        glHint(GL_LINE_SMOOTH_HINT, GL_NICEST)
+        glLineWidth(3.0)
 
-    fragmentShaderSource = """
-        #version 460 core
-        out vec4 FragColor;
+        glUseProgram(self.beam_shader)
+        
+        glUniformMatrix4fv(self.beam_model_loc, 1, GL_FALSE, glm.value_ptr(model))
+        glUniformMatrix4fv(self.beam_view_loc, 1, GL_FALSE, glm.value_ptr(view))
+        glUniformMatrix4fv(self.beam_projection_loc, 1, GL_FALSE, glm.value_ptr(projection))
+        
+        glBindVertexArray(self.beam_vao)
+        glDrawArrays(GL_LINES, 0, self.beam_vertex_count)
+        glBindVertexArray(0)
+        
+        glUseProgram(0)
 
-        in vec2 TexCoord;
-        in vec3 Pos;
+    def create_triangle_array(self, parser):
+        vertices = []
 
-        uniform sampler2D ourTexture;
+        for triangle in parser.triangles:
+            v1, v2, v3 = triangle.triangle_nodes
+            p1 = parser.vertices[v1]
+            p2 = parser.vertices[v2]
+            p3 = parser.vertices[v3]
+            vertices.extend(p1)
+            vertices.extend(p2)
+            vertices.extend(p3)
+        
+        return np.array(vertices, dtype=np.float32)
 
-        void main() {
-            FragColor = texture(ourTexture, TexCoord) * vec4(Pos.x, Pos.y, Pos.z, 1.0);
-        } """
+    def setup_buffers_triangle(self):
+        self.triangle_vao = glGenVertexArrays(1)
+        glBindVertexArray(self.triangle_vao)
 
-    vertexShader = glCreateShader(GL_VERTEX_SHADER)
-    glShaderSource(vertexShader,vertexShaderSource)
-    glCompileShader(vertexShader)
+        self.triangle_vbo = glGenBuffers(1)
+        glBindBuffer(GL_ARRAY_BUFFER, self.triangle_vbo)
+        glBufferData(GL_ARRAY_BUFFER, self.triangle_vertices.nbytes, self.triangle_vertices, GL_DYNAMIC_DRAW)
 
-    if not glGetShaderiv(vertexShader, GL_COMPILE_STATUS):
-        error = glGetShaderInfoLog(vertexShader).decode()
-        print("Vertex shader error:", error)
-        raise RuntimeError("Vertex shader compilation failed")
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, None)
+        glEnableVertexAttribArray(0)
 
-    fragmentShader = glCreateShader(GL_FRAGMENT_SHADER)
-    glShaderSource(fragmentShader, fragmentShaderSource)
-    glCompileShader(fragmentShader)
+        glBindVertexArray(0)
+        glBindBuffer(GL_ARRAY_BUFFER, 0)
 
-    if not glGetShaderiv(fragmentShader, GL_COMPILE_STATUS):
-        error = glGetShaderInfoLog(fragmentShader).decode()
-        print("Fragment shader error:", error)
-        raise RuntimeError("Fragment shader compilation failed")
+    def setup_shaders_triangle(self):
+        vertex_shader_source = """
+            #version 330 core
+            layout (location = 0) in vec3 aPos;
 
-    shaderProgram = glCreateProgram()
-    glAttachShader(shaderProgram, vertexShader)
-    glAttachShader(shaderProgram, fragmentShader)
-    glLinkProgram(shaderProgram)
-    
-    if not glGetProgramiv(shaderProgram, GL_LINK_STATUS):
-        error = glGetProgramInfoLog(shaderProgram).decode()
-        print("Program linking error:", error)
-        raise RuntimeError("Shader program linking failed")
+            uniform mat4 model;
+            uniform mat4 view;
+            uniform mat4 projection;
 
-    glDeleteShader(vertexShader)
-    glDeleteShader(fragmentShader)
+            void main() {
+                gl_Position = projection * view * model * vec4(aPos, 1.0);
+            }
+        """
+
+        fragment_shader_source = """
+            #version 330 core
+            out vec4 FragColour;
+
+            void main() {
+                FragColour = vec4(1.0, 1.0, 1.0, 1.0);
+            }
+        """
+
+        vertex_shader = glCreateShader(GL_VERTEX_SHADER)
+        glShaderSource(vertex_shader, vertex_shader_source)
+        glCompileShader(vertex_shader)
+        
+        fragment_shader = glCreateShader(GL_FRAGMENT_SHADER)
+        glShaderSource(fragment_shader, fragment_shader_source)
+        glCompileShader(fragment_shader)
+        
+        self.shader_program = glCreateProgram()
+        glAttachShader(self.shader_program, vertex_shader)
+        glAttachShader(self.shader_program, fragment_shader)
+        glLinkProgram(self.shader_program)
+        
+        glDeleteShader(vertex_shader)
+        glDeleteShader(fragment_shader)
+        
+        self.model_loc = glGetUniformLocation(self.shader_program, "model")
+        self.view_loc = glGetUniformLocation(self.shader_program, "view")
+        self.projection_loc = glGetUniformLocation(self.shader_program, "projection")
+
+        self.triangle_shader = self.shader_program
+        self.triangle_model_loc = self.model_loc
+        self.triangle_view_loc = self.view_loc
+        self.triangle_projection_loc = self.projection_loc
+
+    def render_triangles(self, model, view, projection):
+        glUseProgram(self.shader_program)
+        
+        glUniformMatrix4fv(self.triangle_model_loc, 1, GL_FALSE, glm.value_ptr(model))
+        glUniformMatrix4fv(self.triangle_view_loc, 1, GL_FALSE, glm.value_ptr(view))
+        glUniformMatrix4fv(self.triangle_projection_loc, 1, GL_FALSE, glm.value_ptr(projection))
+        
+        glBindVertexArray(self.triangle_vao)
+        glDrawArrays(GL_TRIANGLES, 0, self.triangle_count)
+        glBindVertexArray(0)
