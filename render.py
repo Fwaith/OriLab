@@ -17,6 +17,14 @@ class Renderer:
         self.setup_buffers_triangle()
         self.setup_shaders_triangle()
 
+        self.beam_endpoints = []
+        for beam in parser.beams:
+            self.beam_endpoints.append(beam.node_endpoints)
+
+        self.triangle_nodes = []
+        for tri in parser.triangles:
+            self.triangle_nodes.append(tri.triangle_nodes)
+
     def create_beam_array(self, parser):
         vertices = []
 
@@ -226,3 +234,29 @@ class Renderer:
         glBindVertexArray(self.triangle_vao)
         glDrawArrays(GL_TRIANGLES, 0, self.triangle_count)
         glBindVertexArray(0)
+
+    def update(self, nodes):
+        beam_verts = []
+        for v1_idx, v2_idx in self.beam_endpoints:
+            p1 = nodes[v1_idx].position
+            p2 = nodes[v2_idx].position
+            beam_verts.extend(p1)
+            beam_verts.extend(p2)
+        beam_verts = np.array(beam_verts, dtype=np.float32)
+
+        glBindBuffer(GL_ARRAY_BUFFER, self.beam_vbo)
+        glBufferData(GL_ARRAY_BUFFER, beam_verts.nbytes, beam_verts, GL_DYNAMIC_DRAW)
+
+        tri_verts = []
+        for v1_idx, v2_idx, v3_idx in self.triangle_nodes:
+            p1 = nodes[v1_idx].position
+            p2 = nodes[v2_idx].position
+            p3 = nodes[v3_idx].position
+            tri_verts.extend(p1)
+            tri_verts.extend(p2)
+            tri_verts.extend(p3)
+        tri_verts = np.array(tri_verts, dtype=np.float32)
+
+        glBindBuffer(GL_ARRAY_BUFFER, self.triangle_vbo)
+        glBufferData(GL_ARRAY_BUFFER, tri_verts.nbytes, tri_verts, GL_DYNAMIC_DRAW)
+        glBindBuffer(GL_ARRAY_BUFFER, 0)

@@ -3,7 +3,7 @@ import glm
 import math
 
 cameraPos = glm.vec3(0.0, 0.0, 3.0)
-cameraFront = glm.vec3(0.0, 0.0, -1.0)
+cameraFront = glm.vec3(0.0, 0.0, -3.0)
 cameraUp = glm.vec3(0.0, 1.0,  0.0)
 firstMouse = True
 lastX = 300.0
@@ -12,7 +12,7 @@ fov = 45.0
 deltaTime = 0.0
 lastFrame = 0.0
 
-modelRotX = 0.0
+modelRotX = -60.0
 modelRotY = 0.0
 mouseDragging = False
 
@@ -28,10 +28,10 @@ def processInput(window):
     lastFrame = currentFrame
     cameraSpeed = 2.5 * deltaTime
 
-    if glfw.get_key(window, glfw.KEY_UP) == glfw.PRESS:
-        cameraPos += cameraSpeed * cameraFront
-    if glfw.get_key(window, glfw.KEY_DOWN) == glfw.PRESS:
-        cameraPos -= cameraSpeed * cameraFront
+    #if glfw.get_key(window, glfw.KEY_UP) == glfw.PRESS:
+    #    cameraPos += cameraSpeed * cameraFront
+    #if glfw.get_key(window, glfw.KEY_DOWN) == glfw.PRESS:
+    #    cameraPos -= cameraSpeed * cameraFront
     if glfw.get_key(window, glfw.KEY_LEFT) == glfw.PRESS:
         cameraPos -= glm.normalize(glm.cross(cameraFront, cameraUp)) * cameraSpeed
     if glfw.get_key(window, glfw.KEY_RIGHT) == glfw.PRESS:

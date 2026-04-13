@@ -26,7 +26,7 @@ class Parser:
         self.extract_faces()
         self.discretise_crease_pattern()
         self.create_objects()
-        #self.print_data()
+        self.print_data()
 
     def extract_vertices(self):
         vertices_coords = self.data["vertices_coords"]
@@ -36,7 +36,8 @@ class Parser:
         self.edges = np.array(self.data.get("edges_vertices", []), dtype=int)
         self.edges_sorted = np.array([tuple(edge) for edge in np.sort(self.edges, axis=1)])
         self.edge_assignments = self.data.get("edges_assignment", [])
-        self.edge_fold_angles = self.data.get("edges_foldAngle", [])
+        #self.edge_fold_angles = self.data.get("edges_foldAngle", [])
+        self.edge_fold_angles = np.radians(self.data.get("edges_foldAngle", []))
     
     def extract_faces(self):
         self.faces = self.data.get("faces_vertices", [])
@@ -171,7 +172,7 @@ class Node:
     def __init__(self, id, parser):
         self.id = id
         self.mass = 1.0
-        self.damping = 0.01
+        self.damping = 0.8
 
         self.position = parser.vertices[id]
         self.velocity = np.zeros(3)
@@ -196,6 +197,7 @@ class Node:
                 f"Beams {self.beams_connected}\n"
                 f"Triangles {self.tris_incident}\n"
                 f"Creases Affecting {self.creases_affecting}\n"
+                f"Forces {self.force}\n"
             )
 
 class Beam:
@@ -207,7 +209,7 @@ class Beam:
         self.length_current = self.length_original
         self.type = parser.edge_assignments[id]
         self.k_axial = 100.0
-        self.k_crease = 10.0
+        self.k_crease = 200.0
         self.fold_angle_target = parser.edge_fold_angles[id]
         self.fold_angle_current = 0.0
 
